@@ -477,14 +477,14 @@ pub fn rewrite_command(
     let normalized_prefixes = normalize_transparent_prefixes(transparent_prefixes);
 
     // Simple (non-compound) already-RTK command — return as-is.
-    // For compound commands that start with "rtk" (e.g. "rtk git add . && cargo test"),
+    // For compound commands that start with "rtk" (e.g. "zap git add . && cargo test"),
     // fall through to rewrite_compound so the remaining segments get rewritten.
     let has_compound = trimmed.contains("&&")
         || trimmed.contains("||")
         || trimmed.contains(';')
         || trimmed.contains('|')
         || trimmed.contains(" & ");
-    if !has_compound && (trimmed.starts_with("rtk ") || trimmed == "rtk") {
+    if !has_compound && (trimmed.starts_with("zap ") || trimmed == "zap") {
         return Some(trimmed.to_string());
     }
 
@@ -605,7 +605,7 @@ fn rewrite_line_range(cmd: &str) -> Option<String> {
         if let Some(caps) = re.captures(cmd) {
             let n = caps.get(1)?.as_str();
             let file = caps.get(2)?.as_str();
-            return Some(format!("rtk read {} --max-lines {}", file, n));
+            return Some(format!("zap read {} --max-lines {}", file, n));
         }
     }
     if cmd.starts_with("head -") {
@@ -620,7 +620,7 @@ fn rewrite_line_range(cmd: &str) -> Option<String> {
         if let Some(caps) = re.captures(cmd) {
             let n = caps.get(1)?.as_str();
             let file = caps.get(2)?.as_str();
-            return Some(format!("rtk read {} --tail-lines {}", file, n));
+            return Some(format!("zap read {} --tail-lines {}", file, n));
         }
     }
     None
@@ -755,7 +755,7 @@ fn rewrite_segment_inner(
     let (cmd_part, redirect_suffix) = strip_trailing_redirects(trimmed);
 
     // Already RTK — pass through unchanged
-    if cmd_part.starts_with("rtk ") || cmd_part == "rtk" {
+    if cmd_part.starts_with("zap ") || cmd_part == "zap" {
         return Some(trimmed.to_string());
     }
 
@@ -791,10 +791,10 @@ fn rewrite_segment_inner(
 
     if let Some(parts) = parse_golangci_run_parts(cmd_part) {
         let rewritten = if parts.global_segment.is_empty() {
-            format!("rtk golangci-lint {}", parts.run_segment)
+            format!("zap golangci-lint {}", parts.run_segment)
         } else {
             format!(
-                "rtk golangci-lint {} {}",
+                "zap golangci-lint {} {}",
                 parts.global_segment, parts.run_segment
             )
         };
@@ -803,7 +803,7 @@ fn rewrite_segment_inner(
 
     // #196: gh with --json/--jq/--template produces structured output that
     // rtk gh would corrupt — skip rewrite so the caller gets raw JSON.
-    if rule.rtk_cmd == "rtk gh" {
+    if rule.rtk_cmd == "zap gh" {
         let args_lower = cmd_part.to_lowercase();
         if args_lower.contains("--json")
             || args_lower.contains("--jq")
@@ -857,7 +857,7 @@ mod tests {
         assert_eq!(
             classify_command("git status"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -870,7 +870,7 @@ mod tests {
         assert_eq!(
             classify_command("yadm status"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -883,7 +883,7 @@ mod tests {
         assert_eq!(
             classify_command("yadm diff"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -895,7 +895,7 @@ mod tests {
     fn test_rewrite_yadm_status() {
         assert_eq!(
             rewrite_command_no_prefixes("yadm status", &[]),
-            Some("rtk git status".to_string())
+            Some("zap git status".to_string())
         );
     }
 
@@ -904,7 +904,7 @@ mod tests {
         assert_eq!(
             classify_command("git diff --cached"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -917,7 +917,7 @@ mod tests {
         assert_eq!(
             classify_command("cargo test filter::"),
             Classification::Supported {
-                rtk_equivalent: "rtk cargo",
+                rtk_equivalent: "zap cargo",
                 category: "Cargo",
                 estimated_savings_pct: 90.0,
                 status: RtkStatus::Existing,
@@ -930,7 +930,7 @@ mod tests {
         assert_eq!(
             classify_command("npx tsc --noEmit"),
             Classification::Supported {
-                rtk_equivalent: "rtk tsc",
+                rtk_equivalent: "zap tsc",
                 category: "Build",
                 estimated_savings_pct: 83.0,
                 status: RtkStatus::Existing,
@@ -943,7 +943,7 @@ mod tests {
         assert_eq!(
             classify_command("cat src/main.rs"),
             Classification::Supported {
-                rtk_equivalent: "rtk read",
+                rtk_equivalent: "zap read",
                 category: "Files",
                 estimated_savings_pct: 60.0,
                 status: RtkStatus::Existing,
@@ -977,7 +977,7 @@ mod tests {
 
     #[test]
     fn test_classify_rtk_already() {
-        assert_eq!(classify_command("rtk git status"), Classification::Ignored);
+        assert_eq!(classify_command("zap git status"), Classification::Ignored);
     }
 
     #[test]
@@ -1003,7 +1003,7 @@ mod tests {
         assert_eq!(
             classify_command("GIT_SSH_COMMAND=ssh git push"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -1016,7 +1016,7 @@ mod tests {
         assert_eq!(
             classify_command("sudo docker ps"),
             Classification::Supported {
-                rtk_equivalent: "rtk docker",
+                rtk_equivalent: "zap docker",
                 category: "Infra",
                 estimated_savings_pct: 85.0,
                 status: RtkStatus::Existing,
@@ -1029,7 +1029,7 @@ mod tests {
         assert_eq!(
             classify_command("cargo check"),
             Classification::Supported {
-                rtk_equivalent: "rtk cargo",
+                rtk_equivalent: "zap cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -1042,7 +1042,7 @@ mod tests {
         assert_eq!(
             classify_command("cargo check --all-targets"),
             Classification::Supported {
-                rtk_equivalent: "rtk cargo",
+                rtk_equivalent: "zap cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -1055,7 +1055,7 @@ mod tests {
         assert_eq!(
             classify_command("cargo fmt"),
             Classification::Supported {
-                rtk_equivalent: "rtk cargo",
+                rtk_equivalent: "zap cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Passthrough,
@@ -1068,7 +1068,7 @@ mod tests {
         assert_eq!(
             classify_command("cargo clippy --all-targets"),
             Classification::Supported {
-                rtk_equivalent: "rtk cargo",
+                rtk_equivalent: "zap cargo",
                 category: "Cargo",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -1111,7 +1111,7 @@ mod tests {
         assert_eq!(
             classify_command("find . -name foo"),
             Classification::Supported {
-                rtk_equivalent: "rtk find",
+                rtk_equivalent: "zap find",
                 category: "Files",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -1170,7 +1170,7 @@ mod tests {
         assert_eq!(
             classify_command("mypy src/"),
             Classification::Supported {
-                rtk_equivalent: "rtk mypy",
+                rtk_equivalent: "zap mypy",
                 category: "Build",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -1183,7 +1183,7 @@ mod tests {
         assert_eq!(
             classify_command("python3 -m mypy --strict"),
             Classification::Supported {
-                rtk_equivalent: "rtk mypy",
+                rtk_equivalent: "zap mypy",
                 category: "Build",
                 estimated_savings_pct: 80.0,
                 status: RtkStatus::Existing,
@@ -1197,7 +1197,7 @@ mod tests {
     fn test_rewrite_git_status() {
         assert_eq!(
             rewrite_command_no_prefixes("git status", &[]),
-            Some("rtk git status".into())
+            Some("zap git status".into())
         );
     }
 
@@ -1205,7 +1205,7 @@ mod tests {
     fn test_rewrite_git_log() {
         assert_eq!(
             rewrite_command_no_prefixes("git log -10", &[]),
-            Some("rtk git log -10".into())
+            Some("zap git log -10".into())
         );
     }
 
@@ -1215,7 +1215,7 @@ mod tests {
     fn test_rewrite_git_dash_c_status() {
         assert_eq!(
             rewrite_command_no_prefixes("git -C /path/to/repo status", &[]),
-            Some("rtk git -C /path/to/repo status".into())
+            Some("zap git -C /path/to/repo status".into())
         );
     }
 
@@ -1223,7 +1223,7 @@ mod tests {
     fn test_rewrite_git_dash_c_log() {
         assert_eq!(
             rewrite_command_no_prefixes("git -C /tmp/myrepo log --oneline -5", &[]),
-            Some("rtk git -C /tmp/myrepo log --oneline -5".into())
+            Some("zap git -C /tmp/myrepo log --oneline -5".into())
         );
     }
 
@@ -1231,7 +1231,7 @@ mod tests {
     fn test_rewrite_git_dash_c_diff() {
         assert_eq!(
             rewrite_command_no_prefixes("git -C /home/user/project diff --name-only", &[]),
-            Some("rtk git -C /home/user/project diff --name-only".into())
+            Some("zap git -C /home/user/project diff --name-only".into())
         );
     }
 
@@ -1242,7 +1242,7 @@ mod tests {
             matches!(
                 result,
                 Classification::Supported {
-                    rtk_equivalent: "rtk git",
+                    rtk_equivalent: "zap git",
                     ..
                 }
             ),
@@ -1255,7 +1255,7 @@ mod tests {
     fn test_rewrite_cargo_test() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test", &[]),
-            Some("rtk cargo test".into())
+            Some("zap cargo test".into())
         );
     }
 
@@ -1263,7 +1263,7 @@ mod tests {
     fn test_rewrite_compound_and() {
         assert_eq!(
             rewrite_command_no_prefixes("git add . && cargo test", &[]),
-            Some("rtk git add . && rtk cargo test".into())
+            Some("zap git add . && rtk cargo test".into())
         );
     }
 
@@ -1274,15 +1274,15 @@ mod tests {
                 "cargo fmt --all && cargo clippy --all-targets && cargo test",
                 &[]
             ),
-            Some("rtk cargo fmt --all && rtk cargo clippy --all-targets && rtk cargo test".into())
+            Some("zap cargo fmt --all && rtk cargo clippy --all-targets && rtk cargo test".into())
         );
     }
 
     #[test]
     fn test_rewrite_already_rtk() {
         assert_eq!(
-            rewrite_command_no_prefixes("rtk git status", &[]),
-            Some("rtk git status".into())
+            rewrite_command_no_prefixes("zap git status", &[]),
+            Some("zap git status".into())
         );
     }
 
@@ -1290,7 +1290,7 @@ mod tests {
     fn test_rewrite_background_single_amp() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test & git status", &[]),
-            Some("rtk cargo test & rtk git status".into())
+            Some("zap cargo test & rtk git status".into())
         );
     }
 
@@ -1298,7 +1298,7 @@ mod tests {
     fn test_rewrite_background_unsupported_right() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test & htop", &[]),
-            Some("rtk cargo test & htop".into())
+            Some("zap cargo test & htop".into())
         );
     }
 
@@ -1307,7 +1307,7 @@ mod tests {
         // `&&` must still work after adding `&` support
         assert_eq!(
             rewrite_command_no_prefixes("cargo test && git status", &[]),
-            Some("rtk cargo test && rtk git status".into())
+            Some("zap cargo test && rtk git status".into())
         );
     }
 
@@ -1351,7 +1351,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(&format!("{command} --noEmit"), &[]),
-                Some("rtk tsc --noEmit".into()),
+                Some("zap tsc --noEmit".into()),
                 "Failed for command: {}",
                 command
             );
@@ -1362,7 +1362,7 @@ mod tests {
     fn test_rewrite_cat_file() {
         assert_eq!(
             rewrite_command_no_prefixes("cat src/main.rs", &[]),
-            Some("rtk read src/main.rs".into())
+            Some("zap read src/main.rs".into())
         );
     }
 
@@ -1385,7 +1385,7 @@ mod tests {
         // cat -n (line numbers) maps to rtk read -n — allow rewrite
         assert_eq!(
             rewrite_command_no_prefixes("cat -n file.txt", &[]),
-            Some("rtk read -n file.txt".into())
+            Some("zap read -n file.txt".into())
         );
     }
 
@@ -1393,7 +1393,7 @@ mod tests {
     fn test_rewrite_rg_pattern() {
         assert_eq!(
             rewrite_command_no_prefixes("rg \"fn main\"", &[]),
-            Some("rtk grep \"fn main\"".into())
+            Some("zap grep \"fn main\"".into())
         );
     }
 
@@ -1419,7 +1419,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(&format!("{command} test"), &[]),
-                Some("rtk playwright test".into()),
+                Some("zap playwright test".into()),
                 "Failed for command: {}",
                 command
             );
@@ -1448,7 +1448,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(&format!("{command} --turbo"), &[]),
-                Some("rtk next --turbo".into()),
+                Some("zap next --turbo".into()),
                 "Failed for command: {}",
                 command
             );
@@ -1460,7 +1460,7 @@ mod tests {
         // After a pipe, the filter command stays raw
         assert_eq!(
             rewrite_command_no_prefixes("git log -10 | grep feat", &[]),
-            Some("rtk git log -10 | grep feat".into())
+            Some("zap git log -10 | grep feat".into())
         );
     }
 
@@ -1487,7 +1487,7 @@ mod tests {
         // find WITHOUT a pipe should still be rewritten
         assert_eq!(
             rewrite_command_no_prefixes("find . -name '*.rs'", &[]),
-            Some("rtk find . -name '*.rs'".into())
+            Some("zap find . -name '*.rs'".into())
         );
     }
 
@@ -1509,8 +1509,8 @@ mod tests {
     fn test_rewrite_mixed_compound_partial() {
         // First segment already RTK, second gets rewritten
         assert_eq!(
-            rewrite_command_no_prefixes("rtk git add . && cargo test", &[]),
-            Some("rtk git add . && rtk cargo test".into())
+            rewrite_command_no_prefixes("zap git add . && cargo test", &[]),
+            Some("zap git add . && rtk cargo test".into())
         );
     }
 
@@ -1635,7 +1635,7 @@ mod tests {
         assert_eq!(
             classify_command(r#"GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no" git push"#),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -1649,7 +1649,7 @@ mod tests {
     fn test_rewrite_redirect_2_gt_amp_1_with_pipe() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test 2>&1 | head", &[]),
-            Some("rtk cargo test 2>&1 | head".into())
+            Some("zap cargo test 2>&1 | head".into())
         );
     }
 
@@ -1657,7 +1657,7 @@ mod tests {
     fn test_rewrite_redirect_2_gt_amp_1_trailing() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test 2>&1", &[]),
-            Some("rtk cargo test 2>&1".into())
+            Some("zap cargo test 2>&1".into())
         );
     }
 
@@ -1666,7 +1666,7 @@ mod tests {
         // 2>/dev/null has no `&`, never broken — non-regression
         assert_eq!(
             rewrite_command_no_prefixes("git status 2>/dev/null", &[]),
-            Some("rtk git status 2>/dev/null".into())
+            Some("zap git status 2>/dev/null".into())
         );
     }
 
@@ -1674,7 +1674,7 @@ mod tests {
     fn test_rewrite_redirect_2_gt_amp_1_with_and() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test 2>&1 && echo done", &[]),
-            Some("rtk cargo test 2>&1 && echo done".into())
+            Some("zap cargo test 2>&1 && echo done".into())
         );
     }
 
@@ -1682,7 +1682,7 @@ mod tests {
     fn test_rewrite_redirect_amp_gt_devnull() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test &>/dev/null", &[]),
-            Some("rtk cargo test &>/dev/null".into())
+            Some("zap cargo test &>/dev/null".into())
         );
     }
 
@@ -1691,7 +1691,7 @@ mod tests {
         // Double redirect: only last one stripped, but full command rewrites correctly
         assert_eq!(
             rewrite_command_no_prefixes("git status 2>&1 >/dev/null", &[]),
-            Some("rtk git status 2>&1 >/dev/null".into())
+            Some("zap git status 2>&1 >/dev/null".into())
         );
     }
 
@@ -1700,7 +1700,7 @@ mod tests {
         // 2>&- (close stderr fd)
         assert_eq!(
             rewrite_command_no_prefixes("git status 2>&-", &[]),
-            Some("rtk git status 2>&-".into())
+            Some("zap git status 2>&-".into())
         );
     }
 
@@ -1720,7 +1720,7 @@ mod tests {
         // background `&` must still work after redirect fix
         assert_eq!(
             rewrite_command_no_prefixes("cargo test & git status", &[]),
-            Some("rtk cargo test & rtk git status".into())
+            Some("zap cargo test & rtk git status".into())
         );
     }
 
@@ -1731,7 +1731,7 @@ mod tests {
         // head -20 file → rtk read file --max-lines 20 (not rtk read -20 file)
         assert_eq!(
             rewrite_command_no_prefixes("head -20 src/main.rs", &[]),
-            Some("rtk read src/main.rs --max-lines 20".into())
+            Some("zap read src/main.rs --max-lines 20".into())
         );
     }
 
@@ -1739,7 +1739,7 @@ mod tests {
     fn test_rewrite_head_lines_long_flag() {
         assert_eq!(
             rewrite_command_no_prefixes("head --lines=50 src/lib.rs", &[]),
-            Some("rtk read src/lib.rs --max-lines 50".into())
+            Some("zap read src/lib.rs --max-lines 50".into())
         );
     }
 
@@ -1748,7 +1748,7 @@ mod tests {
         // plain `head file` → `rtk read file` (no numeric flag)
         assert_eq!(
             rewrite_command_no_prefixes("head src/main.rs", &[]),
-            Some("rtk read src/main.rs".into())
+            Some("zap read src/main.rs".into())
         );
     }
 
@@ -1765,7 +1765,7 @@ mod tests {
     fn test_rewrite_tail_numeric_flag() {
         assert_eq!(
             rewrite_command_no_prefixes("tail -20 src/main.rs", &[]),
-            Some("rtk read src/main.rs --tail-lines 20".into())
+            Some("zap read src/main.rs --tail-lines 20".into())
         );
     }
 
@@ -1773,7 +1773,7 @@ mod tests {
     fn test_rewrite_tail_n_space_flag() {
         assert_eq!(
             rewrite_command_no_prefixes("tail -n 12 src/lib.rs", &[]),
-            Some("rtk read src/lib.rs --tail-lines 12".into())
+            Some("zap read src/lib.rs --tail-lines 12".into())
         );
     }
 
@@ -1781,7 +1781,7 @@ mod tests {
     fn test_rewrite_tail_lines_long_flag() {
         assert_eq!(
             rewrite_command_no_prefixes("tail --lines=7 src/lib.rs", &[]),
-            Some("rtk read src/lib.rs --tail-lines 7".into())
+            Some("zap read src/lib.rs --tail-lines 7".into())
         );
     }
 
@@ -1789,7 +1789,7 @@ mod tests {
     fn test_rewrite_tail_lines_space_flag() {
         assert_eq!(
             rewrite_command_no_prefixes("tail --lines 7 src/lib.rs", &[]),
-            Some("rtk read src/lib.rs --tail-lines 7".into())
+            Some("zap read src/lib.rs --tail-lines 7".into())
         );
     }
 
@@ -1870,7 +1870,7 @@ mod tests {
         assert!(matches!(
             classify_command("gh release list"),
             Classification::Supported {
-                rtk_equivalent: "rtk gh",
+                rtk_equivalent: "zap gh",
                 ..
             }
         ));
@@ -1881,7 +1881,7 @@ mod tests {
         assert!(matches!(
             classify_command("glab mr list"),
             Classification::Supported {
-                rtk_equivalent: "rtk glab",
+                rtk_equivalent: "zap glab",
                 ..
             }
         ));
@@ -1892,7 +1892,7 @@ mod tests {
         assert!(matches!(
             classify_command("glab ci list"),
             Classification::Supported {
-                rtk_equivalent: "rtk glab",
+                rtk_equivalent: "zap glab",
                 ..
             }
         ));
@@ -1903,7 +1903,7 @@ mod tests {
         assert!(matches!(
             classify_command("glab release list"),
             Classification::Supported {
-                rtk_equivalent: "rtk glab",
+                rtk_equivalent: "zap glab",
                 ..
             }
         ));
@@ -1913,7 +1913,7 @@ mod tests {
     fn test_rewrite_glab_mr_list() {
         assert_eq!(
             rewrite_command_no_prefixes("glab mr list", &[]),
-            Some("rtk glab mr list".into())
+            Some("zap glab mr list".into())
         );
     }
 
@@ -1921,7 +1921,7 @@ mod tests {
     fn test_rewrite_glab_ci_status() {
         assert_eq!(
             rewrite_command_no_prefixes("glab ci status", &[]),
-            Some("rtk glab ci status".into())
+            Some("zap glab ci status".into())
         );
     }
 
@@ -1930,7 +1930,7 @@ mod tests {
         assert!(matches!(
             classify_command("cargo install rtk"),
             Classification::Supported {
-                rtk_equivalent: "rtk cargo",
+                rtk_equivalent: "zap cargo",
                 ..
             }
         ));
@@ -1941,7 +1941,7 @@ mod tests {
         assert!(matches!(
             classify_command("docker run --rm ubuntu bash"),
             Classification::Supported {
-                rtk_equivalent: "rtk docker",
+                rtk_equivalent: "zap docker",
                 ..
             }
         ));
@@ -1952,7 +1952,7 @@ mod tests {
         assert!(matches!(
             classify_command("docker exec -it mycontainer bash"),
             Classification::Supported {
-                rtk_equivalent: "rtk docker",
+                rtk_equivalent: "zap docker",
                 ..
             }
         ));
@@ -1963,7 +1963,7 @@ mod tests {
         assert!(matches!(
             classify_command("docker build -t myimage ."),
             Classification::Supported {
-                rtk_equivalent: "rtk docker",
+                rtk_equivalent: "zap docker",
                 ..
             }
         ));
@@ -1974,7 +1974,7 @@ mod tests {
         assert!(matches!(
             classify_command("kubectl describe pod mypod"),
             Classification::Supported {
-                rtk_equivalent: "rtk kubectl",
+                rtk_equivalent: "zap kubectl",
                 ..
             }
         ));
@@ -1985,7 +1985,7 @@ mod tests {
         assert!(matches!(
             classify_command("kubectl apply -f deploy.yaml"),
             Classification::Supported {
-                rtk_equivalent: "rtk kubectl",
+                rtk_equivalent: "zap kubectl",
                 ..
             }
         ));
@@ -1996,7 +1996,7 @@ mod tests {
         assert!(matches!(
             classify_command("tree src/"),
             Classification::Supported {
-                rtk_equivalent: "rtk tree",
+                rtk_equivalent: "zap tree",
                 ..
             }
         ));
@@ -2007,7 +2007,7 @@ mod tests {
         assert!(matches!(
             classify_command("diff file1.txt file2.txt"),
             Classification::Supported {
-                rtk_equivalent: "rtk diff",
+                rtk_equivalent: "zap diff",
                 ..
             }
         ));
@@ -2017,7 +2017,7 @@ mod tests {
     fn test_rewrite_tree() {
         assert_eq!(
             rewrite_command_no_prefixes("tree src/", &[]),
-            Some("rtk tree src/".into())
+            Some("zap tree src/".into())
         );
     }
 
@@ -2025,7 +2025,7 @@ mod tests {
     fn test_rewrite_diff() {
         assert_eq!(
             rewrite_command_no_prefixes("diff file1.txt file2.txt", &[]),
-            Some("rtk diff file1.txt file2.txt".into())
+            Some("zap diff file1.txt file2.txt".into())
         );
     }
 
@@ -2033,7 +2033,7 @@ mod tests {
     fn test_rewrite_gh_release() {
         assert_eq!(
             rewrite_command_no_prefixes("gh release list", &[]),
-            Some("rtk gh release list".into())
+            Some("zap gh release list".into())
         );
     }
 
@@ -2041,7 +2041,7 @@ mod tests {
     fn test_rewrite_cargo_install() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo install rtk", &[]),
-            Some("rtk cargo install rtk".into())
+            Some("zap cargo install rtk".into())
         );
     }
 
@@ -2049,7 +2049,7 @@ mod tests {
     fn test_rewrite_kubectl_describe() {
         assert_eq!(
             rewrite_command_no_prefixes("kubectl describe pod mypod", &[]),
-            Some("rtk kubectl describe pod mypod".into())
+            Some("zap kubectl describe pod mypod".into())
         );
     }
 
@@ -2057,7 +2057,7 @@ mod tests {
     fn test_rewrite_docker_run() {
         assert_eq!(
             rewrite_command_no_prefixes("docker run --rm ubuntu bash", &[]),
-            Some("rtk docker run --rm ubuntu bash".into())
+            Some("zap docker run --rm ubuntu bash".into())
         );
     }
 
@@ -2066,7 +2066,7 @@ mod tests {
         assert!(matches!(
             classify_command("swift test"),
             Classification::Supported {
-                rtk_equivalent: "rtk swift",
+                rtk_equivalent: "zap swift",
                 category: "Build",
                 estimated_savings_pct: 90.0,
                 status: RtkStatus::Existing,
@@ -2078,7 +2078,7 @@ mod tests {
     fn test_rewrite_swift_test() {
         assert_eq!(
             rewrite_command_no_prefixes("swift test --parallel", &[]),
-            Some("rtk swift test --parallel".into())
+            Some("zap swift test --parallel".into())
         );
     }
 
@@ -2088,7 +2088,7 @@ mod tests {
     fn test_rewrite_docker_compose_ps() {
         assert_eq!(
             rewrite_command_no_prefixes("docker compose ps", &[]),
-            Some("rtk docker compose ps".into())
+            Some("zap docker compose ps".into())
         );
     }
 
@@ -2096,7 +2096,7 @@ mod tests {
     fn test_rewrite_docker_compose_logs() {
         assert_eq!(
             rewrite_command_no_prefixes("docker compose logs web", &[]),
-            Some("rtk docker compose logs web".into())
+            Some("zap docker compose logs web".into())
         );
     }
 
@@ -2104,7 +2104,7 @@ mod tests {
     fn test_rewrite_docker_compose_build() {
         assert_eq!(
             rewrite_command_no_prefixes("docker compose build", &[]),
-            Some("rtk docker compose build".into())
+            Some("zap docker compose build".into())
         );
     }
 
@@ -2139,7 +2139,7 @@ mod tests {
         assert!(matches!(
             classify_command("aws s3 ls"),
             Classification::Supported {
-                rtk_equivalent: "rtk aws",
+                rtk_equivalent: "zap aws",
                 ..
             }
         ));
@@ -2150,7 +2150,7 @@ mod tests {
         assert!(matches!(
             classify_command("aws ec2 describe-instances"),
             Classification::Supported {
-                rtk_equivalent: "rtk aws",
+                rtk_equivalent: "zap aws",
                 ..
             }
         ));
@@ -2161,7 +2161,7 @@ mod tests {
         assert!(matches!(
             classify_command("psql -U postgres"),
             Classification::Supported {
-                rtk_equivalent: "rtk psql",
+                rtk_equivalent: "zap psql",
                 ..
             }
         ));
@@ -2172,7 +2172,7 @@ mod tests {
         assert!(matches!(
             classify_command("psql postgres://localhost/mydb"),
             Classification::Supported {
-                rtk_equivalent: "rtk psql",
+                rtk_equivalent: "zap psql",
                 ..
             }
         ));
@@ -2182,7 +2182,7 @@ mod tests {
     fn test_rewrite_aws() {
         assert_eq!(
             rewrite_command_no_prefixes("aws s3 ls", &[]),
-            Some("rtk aws s3 ls".into())
+            Some("zap aws s3 ls".into())
         );
     }
 
@@ -2190,7 +2190,7 @@ mod tests {
     fn test_rewrite_aws_ec2() {
         assert_eq!(
             rewrite_command_no_prefixes("aws ec2 describe-instances --region us-east-1", &[]),
-            Some("rtk aws ec2 describe-instances --region us-east-1".into())
+            Some("zap aws ec2 describe-instances --region us-east-1".into())
         );
     }
 
@@ -2198,7 +2198,7 @@ mod tests {
     fn test_rewrite_psql() {
         assert_eq!(
             rewrite_command_no_prefixes("psql -U postgres -d mydb", &[]),
-            Some("rtk psql -U postgres -d mydb".into())
+            Some("zap psql -U postgres -d mydb".into())
         );
     }
 
@@ -2209,7 +2209,7 @@ mod tests {
         assert!(matches!(
             classify_command("ruff check ."),
             Classification::Supported {
-                rtk_equivalent: "rtk ruff",
+                rtk_equivalent: "zap ruff",
                 ..
             }
         ));
@@ -2220,7 +2220,7 @@ mod tests {
         assert!(matches!(
             classify_command("ruff format src/"),
             Classification::Supported {
-                rtk_equivalent: "rtk ruff",
+                rtk_equivalent: "zap ruff",
                 ..
             }
         ));
@@ -2231,7 +2231,7 @@ mod tests {
         assert!(matches!(
             classify_command("pytest tests/"),
             Classification::Supported {
-                rtk_equivalent: "rtk pytest",
+                rtk_equivalent: "zap pytest",
                 ..
             }
         ));
@@ -2242,7 +2242,7 @@ mod tests {
         assert!(matches!(
             classify_command("python -m pytest tests/"),
             Classification::Supported {
-                rtk_equivalent: "rtk pytest",
+                rtk_equivalent: "zap pytest",
                 ..
             }
         ));
@@ -2253,7 +2253,7 @@ mod tests {
         assert!(matches!(
             classify_command("pip list"),
             Classification::Supported {
-                rtk_equivalent: "rtk pip",
+                rtk_equivalent: "zap pip",
                 ..
             }
         ));
@@ -2264,7 +2264,7 @@ mod tests {
         assert!(matches!(
             classify_command("uv pip list"),
             Classification::Supported {
-                rtk_equivalent: "rtk pip",
+                rtk_equivalent: "zap pip",
                 ..
             }
         ));
@@ -2274,7 +2274,7 @@ mod tests {
     fn test_rewrite_ruff_check() {
         assert_eq!(
             rewrite_command_no_prefixes("ruff check .", &[]),
-            Some("rtk ruff check .".into())
+            Some("zap ruff check .".into())
         );
     }
 
@@ -2282,7 +2282,7 @@ mod tests {
     fn test_rewrite_ruff_format() {
         assert_eq!(
             rewrite_command_no_prefixes("ruff format src/", &[]),
-            Some("rtk ruff format src/".into())
+            Some("zap ruff format src/".into())
         );
     }
 
@@ -2290,7 +2290,7 @@ mod tests {
     fn test_rewrite_pytest() {
         assert_eq!(
             rewrite_command_no_prefixes("pytest tests/", &[]),
-            Some("rtk pytest tests/".into())
+            Some("zap pytest tests/".into())
         );
     }
 
@@ -2298,7 +2298,7 @@ mod tests {
     fn test_rewrite_python_m_pytest() {
         assert_eq!(
             rewrite_command_no_prefixes("python -m pytest -x tests/", &[]),
-            Some("rtk pytest -x tests/".into())
+            Some("zap pytest -x tests/".into())
         );
     }
 
@@ -2306,7 +2306,7 @@ mod tests {
     fn test_rewrite_pip_list() {
         assert_eq!(
             rewrite_command_no_prefixes("pip list", &[]),
-            Some("rtk pip list".into())
+            Some("zap pip list".into())
         );
     }
 
@@ -2314,7 +2314,7 @@ mod tests {
     fn test_rewrite_pip_outdated() {
         assert_eq!(
             rewrite_command_no_prefixes("pip outdated", &[]),
-            Some("rtk pip outdated".into())
+            Some("zap pip outdated".into())
         );
     }
 
@@ -2322,7 +2322,7 @@ mod tests {
     fn test_rewrite_uv_pip_list() {
         assert_eq!(
             rewrite_command_no_prefixes("uv pip list", &[]),
-            Some("rtk pip list".into())
+            Some("zap pip list".into())
         );
     }
 
@@ -2333,7 +2333,7 @@ mod tests {
         assert!(matches!(
             classify_command("go test ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk go",
+                rtk_equivalent: "zap go",
                 ..
             }
         ));
@@ -2344,7 +2344,7 @@ mod tests {
         assert!(matches!(
             classify_command("go build ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk go",
+                rtk_equivalent: "zap go",
                 ..
             }
         ));
@@ -2355,7 +2355,7 @@ mod tests {
         assert!(matches!(
             classify_command("go vet ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk go",
+                rtk_equivalent: "zap go",
                 ..
             }
         ));
@@ -2366,7 +2366,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint run"),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2377,7 +2377,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint -v run ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2388,7 +2388,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint --color never run ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2399,7 +2399,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint --color=never run ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2410,7 +2410,7 @@ mod tests {
         assert!(matches!(
             classify_command("golangci-lint --config=foo.yml run ./..."),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2421,7 +2421,7 @@ mod tests {
         assert!(!matches!(
             classify_command("golangci-lint"),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2432,7 +2432,7 @@ mod tests {
         assert!(!matches!(
             classify_command("golangci-lint version"),
             Classification::Supported {
-                rtk_equivalent: "rtk golangci-lint run",
+                rtk_equivalent: "zap golangci-lint run",
                 ..
             }
         ));
@@ -2442,7 +2442,7 @@ mod tests {
     fn test_rewrite_go_test() {
         assert_eq!(
             rewrite_command_no_prefixes("go test ./...", &[]),
-            Some("rtk go test ./...".into())
+            Some("zap go test ./...".into())
         );
     }
 
@@ -2450,7 +2450,7 @@ mod tests {
     fn test_rewrite_go_build() {
         assert_eq!(
             rewrite_command_no_prefixes("go build ./...", &[]),
-            Some("rtk go build ./...".into())
+            Some("zap go build ./...".into())
         );
     }
 
@@ -2458,7 +2458,7 @@ mod tests {
     fn test_rewrite_go_vet() {
         assert_eq!(
             rewrite_command_no_prefixes("go vet ./...", &[]),
-            Some("rtk go vet ./...".into())
+            Some("zap go vet ./...".into())
         );
     }
 
@@ -2466,7 +2466,7 @@ mod tests {
     fn test_rewrite_golangci_lint() {
         assert_eq!(
             rewrite_command_no_prefixes("golangci-lint run ./...", &[]),
-            Some("rtk golangci-lint run ./...".into())
+            Some("zap golangci-lint run ./...".into())
         );
     }
 
@@ -2474,7 +2474,7 @@ mod tests {
     fn test_rewrite_golangci_lint_with_flag_before_run() {
         assert_eq!(
             rewrite_command_no_prefixes("golangci-lint -v run ./...", &[]),
-            Some("rtk golangci-lint -v run ./...".into())
+            Some("zap golangci-lint -v run ./...".into())
         );
     }
 
@@ -2482,7 +2482,7 @@ mod tests {
     fn test_rewrite_golangci_lint_with_value_flag_before_run() {
         assert_eq!(
             rewrite_command_no_prefixes("golangci-lint --color never run ./...", &[]),
-            Some("rtk golangci-lint --color never run ./...".into())
+            Some("zap golangci-lint --color never run ./...".into())
         );
     }
 
@@ -2490,7 +2490,7 @@ mod tests {
     fn test_rewrite_golangci_lint_with_inline_value_flag_before_run() {
         assert_eq!(
             rewrite_command_no_prefixes("golangci-lint --color=never run ./...", &[]),
-            Some("rtk golangci-lint --color=never run ./...".into())
+            Some("zap golangci-lint --color=never run ./...".into())
         );
     }
 
@@ -2498,7 +2498,7 @@ mod tests {
     fn test_rewrite_golangci_lint_with_inline_config_flag_before_run() {
         assert_eq!(
             rewrite_command_no_prefixes("golangci-lint --config=foo.yml run ./...", &[]),
-            Some("rtk golangci-lint --config=foo.yml run ./...".into())
+            Some("zap golangci-lint --config=foo.yml run ./...".into())
         );
     }
 
@@ -2583,7 +2583,7 @@ mod tests {
                 matches!(
                     classify_command(command),
                     Classification::Supported {
-                        rtk_equivalent: "rtk lint",
+                        rtk_equivalent: "zap lint",
                         ..
                     }
                 ),
@@ -2641,7 +2641,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(command, &[]),
-                Some("rtk lint".into()),
+                Some("zap lint".into()),
                 "Failed for command: {}",
                 command
             );
@@ -2687,7 +2687,7 @@ mod tests {
                 matches!(
                     classify_command(command),
                     Classification::Supported {
-                        rtk_equivalent: "rtk jest",
+                        rtk_equivalent: "zap jest",
                         ..
                     }
                 ),
@@ -2734,7 +2734,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(command, &[]),
-                Some("rtk jest".into()),
+                Some("zap jest".into()),
                 "Failed for command: {}",
                 command
             );
@@ -2780,7 +2780,7 @@ mod tests {
                 matches!(
                     classify_command(command),
                     Classification::Supported {
-                        rtk_equivalent: "rtk vitest",
+                        rtk_equivalent: "zap vitest",
                         ..
                     }
                 ),
@@ -2827,7 +2827,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(command, &[]),
-                Some("rtk vitest".into()),
+                Some("zap vitest".into()),
                 "Failed for command: {}",
                 command
             );
@@ -2858,7 +2858,7 @@ mod tests {
                 matches!(
                     classify_command(format!("{command} migrate dev").as_str()),
                     Classification::Supported {
-                        rtk_equivalent: "rtk prisma",
+                        rtk_equivalent: "zap prisma",
                         ..
                     }
                 ),
@@ -2890,7 +2890,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(format!("{command} migrate dev").as_str(), &[]),
-                Some("rtk prisma migrate dev".into()),
+                Some("zap prisma migrate dev".into()),
                 "Failed for command: {}",
                 command
             );
@@ -2919,7 +2919,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(format!("{command} --check src/").as_str(), &[]),
-                Some("rtk prettier --check src/".into()),
+                Some("zap prettier --check src/".into()),
                 "Failed for command: {}",
                 command
             );
@@ -2941,7 +2941,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(format!("pnpm {command}").as_str(), &[]),
-                Some(format!("rtk pnpm {command}")),
+                Some(format!("zap pnpm {command}")),
                 "Failed for command: pnpm {}",
                 command
             );
@@ -2954,7 +2954,7 @@ mod tests {
         for command in commands {
             assert_eq!(
                 rewrite_command_no_prefixes(format!("npm {command}").as_str(), &[]),
-                Some(format!("rtk npm {command}")),
+                Some(format!("zap npm {command}")),
                 "Failed for bare command: npm {}",
                 command
             );
@@ -2965,11 +2965,11 @@ mod tests {
     fn test_rewrite_npm_with_args() {
         assert_eq!(
             rewrite_command_no_prefixes("npm run test", &[]),
-            Some("rtk npm run test".to_string()),
+            Some("zap npm run test".to_string()),
         );
         assert_eq!(
             rewrite_command_no_prefixes("npm exec vitest", &[]),
-            Some("rtk vitest".to_string()),
+            Some("zap vitest".to_string()),
         );
     }
 
@@ -2977,7 +2977,7 @@ mod tests {
     fn test_rewrite_npx() {
         assert_eq!(
             rewrite_command_no_prefixes("npx svgo", &[]),
-            Some("rtk npx svgo".to_string()),
+            Some("zap npx svgo".to_string()),
         );
     }
 
@@ -2988,7 +2988,7 @@ mod tests {
         assert!(matches!(
             classify_command("./gradlew assembleDebug"),
             Classification::Supported {
-                rtk_equivalent: "rtk gradlew",
+                rtk_equivalent: "zap gradlew",
                 ..
             }
         ));
@@ -2999,7 +2999,7 @@ mod tests {
         assert!(matches!(
             classify_command("gradlew build"),
             Classification::Supported {
-                rtk_equivalent: "rtk gradlew",
+                rtk_equivalent: "zap gradlew",
                 ..
             }
         ));
@@ -3010,7 +3010,7 @@ mod tests {
         assert!(matches!(
             classify_command("gradlew.bat clean"),
             Classification::Supported {
-                rtk_equivalent: "rtk gradlew",
+                rtk_equivalent: "zap gradlew",
                 ..
             }
         ));
@@ -3021,7 +3021,7 @@ mod tests {
         assert!(matches!(
             classify_command("gradle build"),
             Classification::Supported {
-                rtk_equivalent: "rtk gradlew",
+                rtk_equivalent: "zap gradlew",
                 ..
             }
         ));
@@ -3031,7 +3031,7 @@ mod tests {
     fn test_rewrite_gradlew() {
         assert_eq!(
             rewrite_command_no_prefixes("./gradlew assembleDebug", &[]),
-            Some("rtk gradlew assembleDebug".into())
+            Some("zap gradlew assembleDebug".into())
         );
     }
 
@@ -3039,7 +3039,7 @@ mod tests {
     fn test_rewrite_gradlew_no_dot_slash() {
         assert_eq!(
             rewrite_command_no_prefixes("gradlew build", &[]),
-            Some("rtk gradlew build".into())
+            Some("zap gradlew build".into())
         );
     }
 
@@ -3047,7 +3047,7 @@ mod tests {
     fn test_rewrite_gradlew_bat() {
         assert_eq!(
             rewrite_command_no_prefixes("gradlew.bat clean", &[]),
-            Some("rtk gradlew clean".into())
+            Some("zap gradlew clean".into())
         );
     }
 
@@ -3055,7 +3055,7 @@ mod tests {
     fn test_rewrite_gradle() {
         assert_eq!(
             rewrite_command_no_prefixes("gradle build", &[]),
-            Some("rtk gradlew build".into())
+            Some("zap gradlew build".into())
         );
     }
 
@@ -3064,7 +3064,7 @@ mod tests {
         assert_eq!(
             classify_command("./gradlew test"),
             Classification::Supported {
-                rtk_equivalent: "rtk gradlew",
+                rtk_equivalent: "zap gradlew",
                 category: "Build",
                 estimated_savings_pct: 90.0,
                 status: RtkStatus::Existing,
@@ -3079,7 +3079,7 @@ mod tests {
         // `||` fallback: left rewritten, right rewritten
         assert_eq!(
             rewrite_command_no_prefixes("cargo test || cargo build", &[]),
-            Some("rtk cargo test || rtk cargo build".into())
+            Some("zap cargo test || rtk cargo build".into())
         );
     }
 
@@ -3087,7 +3087,7 @@ mod tests {
     fn test_rewrite_compound_semicolon() {
         assert_eq!(
             rewrite_command_no_prefixes("git status; cargo test", &[]),
-            Some("rtk git status; rtk cargo test".into())
+            Some("zap git status; rtk cargo test".into())
         );
     }
 
@@ -3096,7 +3096,7 @@ mod tests {
         // Pipe: rewrite first segment only, pass through rest unchanged
         assert_eq!(
             rewrite_command_no_prefixes("cargo test | grep FAILED", &[]),
-            Some("rtk cargo test | grep FAILED".into())
+            Some("zap cargo test | grep FAILED".into())
         );
     }
 
@@ -3104,7 +3104,7 @@ mod tests {
     fn test_rewrite_compound_pipe_git_grep() {
         assert_eq!(
             rewrite_command_no_prefixes("git log -10 | grep feat", &[]),
-            Some("rtk git log -10 | grep feat".into())
+            Some("zap git log -10 | grep feat".into())
         );
     }
 
@@ -3116,7 +3116,7 @@ mod tests {
                 &[]
             ),
             Some(
-                "rtk cargo fmt --all && rtk cargo clippy && rtk cargo test && rtk git status"
+                "zap cargo fmt --all && rtk cargo clippy && rtk cargo test && rtk git status"
                     .into()
             )
         );
@@ -3127,7 +3127,7 @@ mod tests {
         // unsupported segments stay raw
         assert_eq!(
             rewrite_command_no_prefixes("cargo test && htop", &[]),
-            Some("rtk cargo test && htop".into())
+            Some("zap cargo test && htop".into())
         );
     }
 
@@ -3161,7 +3161,7 @@ mod tests {
     fn test_rewrite_find_with_flags() {
         assert_eq!(
             rewrite_command_no_prefixes("find . -name '*.rs' -type f", &[]),
-            Some("rtk find . -name '*.rs' -type f".into())
+            Some("zap find . -name '*.rs' -type f".into())
         );
     }
 
@@ -3175,7 +3175,7 @@ mod tests {
             );
             assert!(!rule.rtk_cmd.is_empty(), "Rule with empty rtk_cmd found");
             assert!(
-                rule.rtk_cmd.starts_with("rtk "),
+                rule.rtk_cmd.starts_with("zap "),
                 "rtk_cmd '{}' must start with 'rtk '",
                 rule.rtk_cmd
             );
@@ -3203,7 +3203,7 @@ mod tests {
         let excluded = vec!["curl".to_string()];
         assert_eq!(
             rewrite_command_no_prefixes("git status", &excluded),
-            Some("rtk git status".into())
+            Some("zap git status".into())
         );
     }
 
@@ -3219,7 +3219,7 @@ mod tests {
         let excluded = vec!["curl".to_string()];
         assert_eq!(
             rewrite_command_no_prefixes("git status && curl https://api.example.com", &excluded),
-            Some("rtk git status && curl https://api.example.com".into())
+            Some("zap git status && curl https://api.example.com".into())
         );
     }
 
@@ -3331,7 +3331,7 @@ mod tests {
     fn test_rewrite_gh_without_json_still_works() {
         assert_eq!(
             rewrite_command_no_prefixes("gh pr list", &[]),
-            Some("rtk gh pr list".into())
+            Some("zap gh pr list".into())
         );
     }
 
@@ -3347,7 +3347,7 @@ mod tests {
             "RTK_DISABLED=true git log --oneline"
         ));
         assert!(!cmd_has_rtk_disabled_prefix("git status"));
-        assert!(!cmd_has_rtk_disabled_prefix("rtk git status"));
+        assert!(!cmd_has_rtk_disabled_prefix("zap git status"));
         assert!(!cmd_has_rtk_disabled_prefix("SOME_VAR=1 git status"));
     }
 
@@ -3371,7 +3371,7 @@ mod tests {
         assert_eq!(
             classify_command("/usr/bin/grep -rni pattern"),
             Classification::Supported {
-                rtk_equivalent: "rtk grep",
+                rtk_equivalent: "zap grep",
                 category: "Files",
                 estimated_savings_pct: 75.0,
                 status: RtkStatus::Existing,
@@ -3384,7 +3384,7 @@ mod tests {
         assert_eq!(
             classify_command("/bin/ls -la"),
             Classification::Supported {
-                rtk_equivalent: "rtk ls",
+                rtk_equivalent: "zap ls",
                 category: "Files",
                 estimated_savings_pct: 65.0,
                 status: RtkStatus::Existing,
@@ -3397,7 +3397,7 @@ mod tests {
         assert_eq!(
             classify_command("/usr/local/bin/git status"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -3411,7 +3411,7 @@ mod tests {
         assert_eq!(
             classify_command("/usr/bin/find ."),
             Classification::Supported {
-                rtk_equivalent: "rtk find",
+                rtk_equivalent: "zap find",
                 category: "Files",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -3434,7 +3434,7 @@ mod tests {
         assert_eq!(
             classify_command("git -C /tmp status"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -3447,7 +3447,7 @@ mod tests {
         assert_eq!(
             classify_command("git --no-pager log -5"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -3460,7 +3460,7 @@ mod tests {
         assert_eq!(
             classify_command("git --git-dir /tmp/.git status"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -3472,7 +3472,7 @@ mod tests {
     fn test_rewrite_git_dash_c() {
         assert_eq!(
             rewrite_command_no_prefixes("git -C /tmp status", &[]),
-            Some("rtk git -C /tmp status".to_string())
+            Some("zap git -C /tmp status".to_string())
         );
     }
 
@@ -3480,7 +3480,7 @@ mod tests {
     fn test_rewrite_git_no_pager() {
         assert_eq!(
             rewrite_command_no_prefixes("git --no-pager log -5", &[]),
-            Some("rtk git --no-pager log -5".to_string())
+            Some("zap git --no-pager log -5".to_string())
         );
     }
 
@@ -3526,7 +3526,7 @@ mod tests {
         assert_eq!(
             classify_command("wc -l src/main.rs"),
             Classification::Supported {
-                rtk_equivalent: "rtk wc",
+                rtk_equivalent: "zap wc",
                 category: "Files",
                 estimated_savings_pct: 60.0,
                 status: RtkStatus::Existing,
@@ -3539,7 +3539,7 @@ mod tests {
         assert_eq!(
             classify_command("wc src/*.rs"),
             Classification::Supported {
-                rtk_equivalent: "rtk wc",
+                rtk_equivalent: "zap wc",
                 category: "Files",
                 estimated_savings_pct: 60.0,
                 status: RtkStatus::Existing,
@@ -3551,7 +3551,7 @@ mod tests {
     fn test_rewrite_wc() {
         assert_eq!(
             rewrite_command_no_prefixes("wc -l src/main.rs", &[]),
-            Some("rtk wc -l src/main.rs".into())
+            Some("zap wc -l src/main.rs".into())
         );
     }
 
@@ -3559,7 +3559,7 @@ mod tests {
     fn test_rewrite_wc_multi_file() {
         assert_eq!(
             rewrite_command_no_prefixes("wc src/*.rs", &[]),
-            Some("rtk wc src/*.rs".into())
+            Some("zap wc src/*.rs".into())
         );
     }
 
@@ -3568,7 +3568,7 @@ mod tests {
         assert_eq!(
             classify_command("git log $(git rev-parse HEAD~1)"),
             Classification::Supported {
-                rtk_equivalent: "rtk git",
+                rtk_equivalent: "zap git",
                 category: "Git",
                 estimated_savings_pct: 70.0,
                 status: RtkStatus::Existing,
@@ -3580,7 +3580,7 @@ mod tests {
     fn test_rewrite_command_substitution_passthrough() {
         assert_eq!(
             rewrite_command_no_prefixes("git log $(git rev-parse HEAD~1)", &[]),
-            Some("rtk git log $(git rev-parse HEAD~1)".into())
+            Some("zap git log $(git rev-parse HEAD~1)".into())
         );
     }
 
@@ -3755,7 +3755,7 @@ mod tests {
         let prefixes = vec!["".to_string(), "   ".to_string()];
         assert_eq!(
             super::rewrite_command("git status", &[], &prefixes),
-            Some("rtk git status".into())
+            Some("zap git status".into())
         );
     }
 
@@ -3804,7 +3804,7 @@ mod tests {
     fn test_python3_m_pytest() {
         assert_eq!(
             rewrite_command_no_prefixes("python3 -m pytest tests/", &[]),
-            Some("rtk pytest tests/".into())
+            Some("zap pytest tests/".into())
         );
     }
 
@@ -3812,7 +3812,7 @@ mod tests {
     fn test_pip_show() {
         assert_eq!(
             rewrite_command_no_prefixes("pip show flask", &[]),
-            Some("rtk pip show flask".into())
+            Some("zap pip show flask".into())
         );
     }
 
@@ -3820,7 +3820,7 @@ mod tests {
     fn test_gt_graphite() {
         assert_eq!(
             rewrite_command_no_prefixes("gt log", &[]),
-            Some("rtk gt log".into())
+            Some("zap gt log".into())
         );
     }
 
@@ -3838,7 +3838,7 @@ mod tests {
     fn test_rewrite_pipe_then_and() {
         assert_eq!(
             rewrite_command_no_prefixes("git log | head -5 && git stash", &[]),
-            Some("rtk git log | head -5 && rtk git stash".into())
+            Some("zap git log | head -5 && rtk git stash".into())
         );
     }
 
@@ -3846,7 +3846,7 @@ mod tests {
     fn test_rewrite_pipe_then_semicolon() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test | head; git status", &[]),
-            Some("rtk cargo test | head; rtk git status".into())
+            Some("zap cargo test | head; rtk git status".into())
         );
     }
 
@@ -3854,7 +3854,7 @@ mod tests {
     fn test_rewrite_pipe_then_or() {
         assert_eq!(
             rewrite_command_no_prefixes("cargo test | grep FAIL || git stash", &[]),
-            Some("rtk cargo test | grep FAIL || rtk git stash".into())
+            Some("zap cargo test | grep FAIL || rtk git stash".into())
         );
     }
 
@@ -3873,7 +3873,7 @@ mod tests {
     fn test_rewrite_and_then_pipe() {
         assert_eq!(
             rewrite_command_no_prefixes("git status && cargo test | grep FAIL", &[]),
-            Some("rtk git status && rtk cargo test | grep FAIL".into())
+            Some("zap git status && rtk cargo test | grep FAIL".into())
         );
     }
 
@@ -3881,7 +3881,7 @@ mod tests {
     fn test_rewrite_multi_pipe_then_and() {
         assert_eq!(
             rewrite_command_no_prefixes("git log | head | tail && git status", &[]),
-            Some("rtk git log | head | tail && rtk git status".into())
+            Some("zap git log | head | tail && rtk git status".into())
         );
     }
 }
