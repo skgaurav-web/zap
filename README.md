@@ -131,7 +131,7 @@ zap docker ps
 zap kubectl pods
 zap aws ec2 describe-instances
 
-# Analytics
+# Analytics (see "Check Your Savings" section below for full reference)
 zap gain               # See token savings stats
 zap gain --graph       # ASCII graph (last 30 days)
 zap gain --history     # Recent command history
@@ -174,6 +174,89 @@ filtered transparently — no need to type `zap` yourself.
 
 Hooks are also available for Cursor, Gemini CLI, Copilot, Windsurf, Cline, and
 more. Run `zap init --help` for the full list.
+
+---
+
+## Check Your Savings
+
+Every command Zap filters is logged to a local SQLite database. Four ways to inspect it:
+
+### 1. Quick summary
+
+```bash
+zap gain
+```
+
+Sample output:
+
+```
+Zap Token Savings (Global Scope)
+════════════════════════════════════════════════════════════
+
+Total commands:    127
+Input tokens:      48,302
+Output tokens:     9,142
+Tokens saved:      39,160 (81.1%)
+Total exec time:   612ms (avg 4ms)
+Efficiency meter: ████████████████████░░░░ 81.1%
+```
+
+### 2. Recent command history
+
+See which commands got filtered and how much they each saved:
+
+```bash
+zap gain --history
+```
+
+```
+05-25 14:22 ▲ zap git log -n 10         -82% (412)
+05-25 14:21 ▲ zap cargo test            -94% (1,830)
+05-25 14:20 ▲ zap git status            -75% (76)
+05-25 14:18 ■ zap ls -la .              -89% (57)
+```
+
+Symbols: `▲` high savings · `■` medium · `•` low / passthrough.
+
+### 3. 30-day ASCII graph
+
+```bash
+zap gain --graph
+```
+
+Visual bar chart of daily savings — satisfying to watch grow over time.
+
+### 4. Per-project scope
+
+By default `zap gain` shows global savings. To see only the project you're in:
+
+```bash
+cd /path/to/your-project
+zap gain --scope project
+```
+
+### More flags
+
+```bash
+zap gain --daily              # Day-by-day breakdown
+zap gain --weekly             # Week-by-week
+zap gain --top 10             # Top 10 most-used commands
+zap gain --since 7            # Last 7 days only
+zap gain --format json        # Machine-readable (for dashboards)
+zap gain --all                # All-time stats
+```
+
+### Watch savings live
+
+Open a terminal next to your AI assistant and run:
+
+```bash
+watch -n 2 'zap gain | head -8'
+```
+
+The numbers tick up every time your AI runs a shell command.
+
+> **Heads up:** If `zap gain` shows `Total commands: 0` even though you've been using Zap, the hook may not be loaded. Run `zap init --show` to verify the hook is registered, then restart your AI tool. See [Troubleshooting](#troubleshooting) above.
 
 ---
 
