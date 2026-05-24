@@ -214,9 +214,9 @@ pub fn run_verify(verbose: u8) -> Result<()> {
         let settings_path = home.join(CLAUDE_DIR).join("settings.json");
         if settings_path.exists() {
             let content = fs::read_to_string(&settings_path).unwrap_or_default();
-            if content.contains("rtk hook claude") {
+            if content.contains("zap hook claude") || content.contains("rtk hook claude") {
                 println!("PASS  native binary hook registered in settings.json");
-                println!("      command: rtk hook claude");
+                println!("      command: zap hook claude");
                 println!("      (no script file — integrity check not applicable)");
                 return Ok(());
             }

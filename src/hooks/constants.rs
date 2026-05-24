@@ -9,9 +9,14 @@ pub const PRE_TOOL_USE_KEY: &str = "PreToolUse";
 pub const BEFORE_TOOL_KEY: &str = "BeforeTool";
 
 /// Native Rust hook command for Claude Code (replaces rtk-rewrite.sh).
-pub const CLAUDE_HOOK_COMMAND: &str = "rtk hook claude";
+pub const CLAUDE_HOOK_COMMAND: &str = "zap hook claude";
 /// Native Rust hook command for Cursor (replaces rtk-rewrite.sh).
-pub const CURSOR_HOOK_COMMAND: &str = "rtk hook cursor";
+pub const CURSOR_HOOK_COMMAND: &str = "zap hook cursor";
+
+/// Legacy hook command from the upstream project, kept for detection of
+/// pre-existing installations so we can recognize and replace them.
+pub const LEGACY_CLAUDE_HOOK_COMMAND: &str = "rtk hook claude";
+pub const LEGACY_CURSOR_HOOK_COMMAND: &str = "rtk hook cursor";
 
 pub const CONFIG_DIR: &str = ".config";
 pub const OPENCODE_SUBDIR: &str = "opencode";

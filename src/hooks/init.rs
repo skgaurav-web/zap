@@ -15,8 +15,9 @@ use super::constants::{
     BEFORE_TOOL_KEY, CLAUDE_DIR, CLAUDE_HOOK_COMMAND, CODEX_DIR, CURSOR_HOOK_COMMAND,
     GEMINI_HOOK_FILE, HERMES_DIR, HERMES_PLUGINS_SUBDIR, HERMES_PLUGIN_INIT_FILE,
     HERMES_PLUGIN_MANIFEST_FILE, HERMES_PLUGIN_NAME, HOOKS_JSON, HOOKS_SUBDIR,
-    PI_CODING_AGENT_DIR_ENV, PI_DIR, PI_EXTENSIONS_SUBDIR, PI_LOCAL_DIR, PI_PLUGIN_FILE,
-    PRE_TOOL_USE_KEY, REWRITE_HOOK_FILE, SETTINGS_JSON,
+    LEGACY_CLAUDE_HOOK_COMMAND, LEGACY_CURSOR_HOOK_COMMAND, PI_CODING_AGENT_DIR_ENV, PI_DIR,
+    PI_EXTENSIONS_SUBDIR, PI_LOCAL_DIR, PI_PLUGIN_FILE, PRE_TOOL_USE_KEY, REWRITE_HOOK_FILE,
+    SETTINGS_JSON,
 };
 use super::integrity;
 
@@ -61,14 +62,22 @@ schema_version = 1
 # max_lines = 40
 "#;
 
-const RTK_MD: &str = "RTK.md";
+const RTK_MD: &str = "ZAP.md";
+#[allow(dead_code)]
+const LEGACY_RTK_MD: &str = "RTK.md";
 const CLAUDE_MD: &str = "CLAUDE.md";
 const AGENTS_MD: &str = "AGENTS.md";
-const RTK_MD_REF: &str = "@RTK.md";
+const RTK_MD_REF: &str = "@ZAP.md";
+#[allow(dead_code)]
+const LEGACY_RTK_MD_REF: &str = "@ZAP.md";
 const GEMINI_MD: &str = "GEMINI.md";
 
-const RTK_BLOCK_START: &str = "<!-- rtk-instructions";
-const RTK_BLOCK_END: &str = "<!-- /rtk-instructions -->";
+const RTK_BLOCK_START: &str = "<!-- zap-instructions";
+const RTK_BLOCK_END: &str = "<!-- /zap-instructions -->";
+#[allow(dead_code)]
+const LEGACY_RTK_BLOCK_START: &str = "<!-- rtk-instructions";
+#[allow(dead_code)]
+const LEGACY_RTK_BLOCK_END: &str = "<!-- /rtk-instructions -->";
 
 /// Control flow for settings.json patching
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -448,52 +457,10 @@ pub fn save_telemetry_consent(accepted: bool) -> Result<()> {
 }
 
 fn prompt_telemetry_consent() -> Result<()> {
-    use std::io::{self, BufRead, IsTerminal};
-
-    let config = crate::core::config::Config::load().unwrap_or_default();
-    match config.telemetry.consent_given {
-        Some(true) => return Ok(()),
-        Some(false) => return Ok(()),
-        None => {}
-    }
-
-    if !io::stdin().is_terminal() {
-        return Ok(());
-    }
-
-    eprintln!();
-    eprintln!("--- Telemetry ---");
-    eprintln!("RTK collects anonymous usage metrics once per day to improve filters.");
-    eprintln!();
-    eprintln!("  What:    command names (not arguments), token savings, OS, version");
-    eprintln!("  Why:     prioritize filter development for the most-used commands");
-    eprintln!("  Who:     RTK AI Labs, contact@rtk-ai.app");
-    eprintln!("  Rights:  disable anytime with `zap telemetry disable`,");
-    eprintln!("           request erasure with `zap telemetry forget`");
-    eprintln!("  Details: https://github.com/rtk-ai/rtk/blob/master/docs/TELEMETRY.md");
-    eprintln!();
-    eprint!("Enable anonymous telemetry? [y/N] ");
-
-    let stdin = io::stdin();
-    let mut line = String::new();
-    stdin
-        .lock()
-        .read_line(&mut line)
-        .context("Failed to read user input")?;
-
-    let accepted = {
-        let response = line.trim().to_lowercase();
-        response == "y" || response == "yes"
-    };
-
-    save_telemetry_consent(accepted)?;
-
-    if accepted {
-        eprintln!("  Telemetry enabled. Disable anytime: rtk telemetry disable");
-    } else {
-        eprintln!("  Telemetry disabled.");
-    }
-
+    // Telemetry has been removed from this build. No prompt, no data
+    // collection, no remote endpoint. Ensures consent stays explicitly disabled
+    // so any leftover config from a previous install is overridden.
+    let _ = save_telemetry_consent(false);
     Ok(())
 }
 
@@ -717,15 +684,15 @@ pub fn uninstall(
     let rtk_md_path = claude_dir.join(RTK_MD);
     if rtk_md_path.exists() {
         if dry_run {
-            println!("[dry-run] would remove RTK.md: {}", rtk_md_path.display());
+            println!("[dry-run] would remove ZAP.md: {}", rtk_md_path.display());
         } else {
             fs::remove_file(&rtk_md_path)
-                .with_context(|| format!("Failed to remove RTK.md: {}", rtk_md_path.display()))?;
+                .with_context(|| format!("Failed to remove ZAP.md: {}", rtk_md_path.display()))?;
         }
-        removed.push(format!("RTK.md: {}", rtk_md_path.display()));
+        removed.push(format!("ZAP.md: {}", rtk_md_path.display()));
     }
 
-    // 3. Remove @RTK.md reference from CLAUDE.md
+    // 3. Remove @ZAP.md reference from CLAUDE.md
     let claude_md_path = claude_dir.join(CLAUDE_MD);
     if claude_md_path.exists() {
         let content = fs::read_to_string(&claude_md_path)
@@ -743,7 +710,7 @@ pub fn uninstall(
 
             working_content = clean_double_blanks(&new_content);
             claude_md_changed = true;
-            removed.push("CLAUDE.md: removed @RTK.md reference".to_string());
+            removed.push("CLAUDE.md: removed @ZAP.md reference".to_string());
         }
 
         if working_content.contains(RTK_BLOCK_START) {
@@ -870,15 +837,15 @@ fn uninstall_codex_at(codex_dir: &Path, ctx: InitContext) -> Result<Vec<String>>
     let rtk_md_path = codex_dir.join(RTK_MD);
     if rtk_md_path.exists() {
         if dry_run {
-            println!("[dry-run] would remove RTK.md: {}", rtk_md_path.display());
+            println!("[dry-run] would remove ZAP.md: {}", rtk_md_path.display());
         } else {
             fs::remove_file(&rtk_md_path)
-                .with_context(|| format!("Failed to remove RTK.md: {}", rtk_md_path.display()))?;
+                .with_context(|| format!("Failed to remove ZAP.md: {}", rtk_md_path.display()))?;
             if verbose > 0 {
-                eprintln!("Removed RTK.md: {}", rtk_md_path.display());
+                eprintln!("Removed ZAP.md: {}", rtk_md_path.display());
             }
         }
-        removed.push(format!("RTK.md: {}", rtk_md_path.display()));
+        removed.push(format!("ZAP.md: {}", rtk_md_path.display()));
     }
 
     let agents_md_path = codex_dir.join(AGENTS_MD);
@@ -910,7 +877,7 @@ fn uninstall_codex_at(codex_dir: &Path, ctx: InitContext) -> Result<Vec<String>>
         &[RTK_MD_REF, absolute_rtk_md_ref.as_str()],
         ctx,
     )? {
-        removed.push("AGENTS.md: removed @RTK.md reference".to_string());
+        removed.push("AGENTS.md: removed @ZAP.md reference".to_string());
     }
 
     Ok(removed)
@@ -1020,7 +987,7 @@ fn patch_settings_json_command(
 }
 
 /// Clean up consecutive blank lines (collapse 3+ to 2)
-/// Used when removing @RTK.md line from CLAUDE.md
+/// Used when removing @ZAP.md line from CLAUDE.md
 fn clean_double_blanks(content: &str) -> String {
     let lines: Vec<&str> = content.lines().collect();
     let mut result = Vec::new();
@@ -1100,11 +1067,14 @@ fn hook_already_present(root: &serde_json::Value, hook_command: &str) -> bool {
         .flatten()
         .filter_map(|hook| hook.get("command")?.as_str())
         .any(|cmd| {
-            cmd == hook_command || cmd == CLAUDE_HOOK_COMMAND || cmd.contains(REWRITE_HOOK_FILE)
+            cmd == hook_command
+                || cmd == CLAUDE_HOOK_COMMAND
+                || cmd == LEGACY_CLAUDE_HOOK_COMMAND
+                || cmd.contains(REWRITE_HOOK_FILE)
         })
 }
 
-/// Default mode: hook + slim RTK.md + @RTK.md reference
+/// Default mode: hook + slim RTK.md + @ZAP.md reference
 fn run_default_mode(
     global: bool,
     patch_mode: PatchMode,
@@ -1137,22 +1107,22 @@ fn run_default_mode(
         None
     };
 
-    // 3. Patch CLAUDE.md (add @RTK.md, migrate if needed)
+    // 3. Patch CLAUDE.md (add @ZAP.md, migrate if needed)
     let migrated = patch_claude_md(&claude_md_path, ctx)?;
 
     // 4. Print success message (skip in dry-run)
     if !dry_run {
         println!("\nRTK hook registered (global).\n");
         println!("  Command:   {}", CLAUDE_HOOK_COMMAND);
-        println!("  RTK.md:    {} (10 lines)", rtk_md_path.display());
+        println!("  ZAP.md:    {} (10 lines)", rtk_md_path.display());
         if let Some(path) = &opencode_plugin_path {
             println!("  OpenCode:  {}", path.display());
         }
-        println!("  CLAUDE.md: @RTK.md reference added");
+        println!("  CLAUDE.md: @ZAP.md reference added");
 
         if migrated {
             println!("\n  [ok] Migrated: removed 137-line RTK block from CLAUDE.md");
-            println!("              replaced with @RTK.md (10 lines)");
+            println!("              replaced with @ZAP.md (10 lines)");
         }
     }
 
@@ -1403,7 +1373,7 @@ fn generate_global_filters_template(ctx: InitContext) -> Result<()> {
     Ok(())
 }
 
-/// Hook-only mode: just the hook, no RTK.md
+/// Hook-only mode: just the hook, no ZAP.md
 fn run_hook_only_mode(
     global: bool,
     patch_mode: PatchMode,
@@ -1493,9 +1463,9 @@ fn run_claude_md_mode(global: bool, install_opencode: bool, ctx: InitContext) ->
     }
 
     let recovery_cmd = if global {
-        "rtk init -g --claude-md"
+        "zap init -g --claude-md"
     } else {
-        "rtk init --claude-md"
+        "zap init --claude-md"
     };
 
     let action = write_rtk_block(
@@ -2273,7 +2243,7 @@ fn run_codex_mode_with_paths(
         }
     }
 
-    // ISSUE #892: In global mode, use absolute path so @RTK.md resolves
+    // ISSUE #892: In global mode, use absolute path so @ZAP.md resolves
     // from any CWD (worktrees, nested projects). Codex resolves @ references
     // relative to CWD, not the AGENTS.md file location.
     let rtk_md_ref = if global {
@@ -2291,7 +2261,7 @@ fn run_codex_mode_with_paths(
 
     if !dry_run {
         println!("\nRTK configured for Codex CLI.\n");
-        println!("  RTK.md:    {}", rtk_md_path.display());
+        println!("  ZAP.md:    {}", rtk_md_path.display());
         if added_ref {
             println!("  AGENTS.md: {} reference added", rtk_md_ref);
         } else {
@@ -2455,7 +2425,7 @@ fn write_rtk_block(
     Ok(action)
 }
 
-/// Patch CLAUDE.md: add @RTK.md, migrate if old block exists
+/// Patch CLAUDE.md: add @ZAP.md, migrate if old block exists
 fn patch_claude_md(path: &Path, ctx: InitContext) -> Result<bool> {
     let InitContext { verbose, dry_run } = ctx;
     let mut content = if path.exists() {
@@ -2478,10 +2448,10 @@ fn patch_claude_md(path: &Path, ctx: InitContext) -> Result<bool> {
         }
     }
 
-    // Check if @RTK.md already present
+    // Check if @ZAP.md already present
     if content.contains(RTK_MD_REF) {
         if verbose > 0 {
-            eprintln!("@RTK.md reference already present in CLAUDE.md");
+            eprintln!("@ZAP.md reference already present in CLAUDE.md");
         }
         if migrated {
             if dry_run {
@@ -2496,16 +2466,16 @@ fn patch_claude_md(path: &Path, ctx: InitContext) -> Result<bool> {
         return Ok(migrated);
     }
 
-    // Add @RTK.md
+    // Add @ZAP.md
     let new_content = if content.is_empty() {
-        "@RTK.md\n".to_string()
+        "@ZAP.md\n".to_string()
     } else {
-        format!("{}\n\n@RTK.md\n", content.trim())
+        format!("{}\n\n@ZAP.md\n", content.trim())
     };
 
     if dry_run {
         println!(
-            "[dry-run] would add @RTK.md reference to CLAUDE.md: {}",
+            "[dry-run] would add @ZAP.md reference to CLAUDE.md: {}",
             path.display()
         );
         if verbose > 0 {
@@ -2515,14 +2485,14 @@ fn patch_claude_md(path: &Path, ctx: InitContext) -> Result<bool> {
         fs::write(path, new_content)?;
 
         if verbose > 0 {
-            eprintln!("Added @RTK.md reference to CLAUDE.md");
+            eprintln!("Added @ZAP.md reference to CLAUDE.md");
         }
     }
 
     Ok(migrated)
 }
 
-/// Patch AGENTS.md: add @RTK.md (or absolute path), migrate old inline block if present
+/// Patch AGENTS.md: add @ZAP.md (or absolute path), migrate old inline block if present
 fn patch_agents_md(path: &Path, rtk_md_ref: &str, ctx: InitContext) -> Result<bool> {
     let InitContext { verbose, dry_run } = ctx;
     let mut content = if path.exists() {
@@ -2544,12 +2514,12 @@ fn patch_agents_md(path: &Path, rtk_md_ref: &str, ctx: InitContext) -> Result<bo
         }
     }
 
-    // ISSUE #892: Check for both relative and absolute @RTK.md references
+    // ISSUE #892: Check for both relative and absolute @ZAP.md references
     if content.contains(RTK_MD_REF) || content.contains(rtk_md_ref) {
         if verbose > 0 {
             eprintln!("{} reference already present in AGENTS.md", rtk_md_ref);
         }
-        // ISSUE #892: Migrate old relative @RTK.md to absolute path if needed
+        // ISSUE #892: Migrate old relative @ZAP.md to absolute path if needed
         if rtk_md_ref != RTK_MD_REF && content.contains(RTK_MD_REF) && !content.contains(rtk_md_ref)
         {
             content = content.replace(RTK_MD_REF, rtk_md_ref);
@@ -2640,7 +2610,7 @@ fn remove_rtk_reference_from_agents(path: &Path, refs: &[&str], ctx: InitContext
 
     if dry_run {
         println!(
-            "[dry-run] would remove RTK.md reference from AGENTS.md: {}",
+            "[dry-run] would remove ZAP.md reference from AGENTS.md: {}",
             path.display()
         );
         if verbose > 0 {
@@ -2654,7 +2624,7 @@ fn remove_rtk_reference_from_agents(path: &Path, refs: &[&str], ctx: InitContext
 
     if verbose > 0 {
         eprintln!(
-            "Removed RTK.md reference from AGENTS.md: {}",
+            "Removed ZAP.md reference from AGENTS.md: {}",
             path.display()
         );
     }
@@ -3084,7 +3054,7 @@ fn cursor_hook_already_present(root: &serde_json::Value) -> bool {
         entry
             .get("command")
             .and_then(|c| c.as_str())
-            .is_some_and(|cmd| cmd.contains(REWRITE_HOOK_FILE) || cmd == CURSOR_HOOK_COMMAND)
+            .is_some_and(|cmd| cmd.contains(REWRITE_HOOK_FILE) || cmd == CURSOR_HOOK_COMMAND || cmd == LEGACY_CURSOR_HOOK_COMMAND)
     })
 }
 
@@ -3182,7 +3152,7 @@ fn remove_legacy_cursor_hook_entries_from_json(root: &mut serde_json::Value) -> 
     pre_tool_use.len() < original_len
 }
 
-/// Remove Cursor RTK artifacts: hook script + hooks.json entry
+/// Remove Cursor Zap artifacts: hook script + hooks.json entry
 fn remove_cursor_hooks(ctx: InitContext) -> Result<Vec<String>> {
     let InitContext { verbose, dry_run } = ctx;
     let cursor_dir = resolve_cursor_dir()?;
@@ -3258,7 +3228,7 @@ fn remove_cursor_hook_from_json(root: &mut serde_json::Value) -> bool {
         !entry
             .get("command")
             .and_then(|c| c.as_str())
-            .is_some_and(|cmd| cmd.contains(REWRITE_HOOK_FILE) || cmd == CURSOR_HOOK_COMMAND)
+            .is_some_and(|cmd| cmd.contains(REWRITE_HOOK_FILE) || cmd == CURSOR_HOOK_COMMAND || cmd == LEGACY_CURSOR_HOOK_COMMAND)
     });
 
     pre_tool_use.len() < original_len
@@ -3280,7 +3250,7 @@ fn show_claude_config() -> Result<()> {
     let global_claude_md = claude_dir.join(CLAUDE_MD);
     let local_claude_md = PathBuf::from(CLAUDE_MD);
 
-    println!("rtk Configuration:\n");
+    println!("Zap Configuration:\n");
 
     // Check hook: prefer binary command detection, fall back to script file
     let settings_path = claude_dir.join(SETTINGS_JSON);
@@ -3348,9 +3318,9 @@ fn show_claude_config() -> Result<()> {
 
     // Check RTK.md
     if rtk_md_path.exists() {
-        println!("[ok] RTK.md: {} (slim mode)", rtk_md_path.display());
+        println!("[ok] ZAP.md: {} (slim mode)", rtk_md_path.display());
     } else {
-        println!("[--] RTK.md: not found");
+        println!("[--] ZAP.md: not found");
     }
 
     // Check hook integrity (only relevant for legacy script hooks)
@@ -3379,7 +3349,7 @@ fn show_claude_config() -> Result<()> {
     if global_claude_md.exists() {
         let content = fs::read_to_string(&global_claude_md)?;
         if content.contains(RTK_MD_REF) {
-            println!("[ok] Global (~/.claude/CLAUDE.md): @RTK.md reference");
+            println!("[ok] Global (~/.claude/CLAUDE.md): @ZAP.md reference");
         } else if content.contains(RTK_BLOCK_START) {
             println!(
                 "[warn] Global (~/.claude/CLAUDE.md): old RTK block (run: rtk init -g to migrate)"
@@ -3395,7 +3365,7 @@ fn show_claude_config() -> Result<()> {
     if local_claude_md.exists() {
         let content = fs::read_to_string(&local_claude_md)?;
         if content.contains("rtk") {
-            println!("[ok] Local (./CLAUDE.md): rtk enabled");
+            println!("[ok] Local (./CLAUDE.md): zap enabled");
         } else {
             println!("[--] Local (./CLAUDE.md): exists but rtk not configured");
         }
@@ -3409,7 +3379,7 @@ fn show_claude_config() -> Result<()> {
         if !content.trim().is_empty() {
             if let Ok(root) = serde_json::from_str::<serde_json::Value>(&content) {
                 if hook_already_present(&root, CLAUDE_HOOK_COMMAND) {
-                    println!("[ok] settings.json: RTK hook configured");
+                    println!("[ok] settings.json: Zap hook configured");
                 } else {
                     println!("[warn] settings.json: exists but RTK hook not configured");
                     println!("    Run: rtk init -g --auto-patch");
@@ -3489,17 +3459,17 @@ fn show_claude_config() -> Result<()> {
     }
 
     println!("\nUsage:");
-    println!("  rtk init              # Full injection into local CLAUDE.md");
-    println!("  rtk init -g           # Hook + RTK.md + @RTK.md + settings.json (recommended)");
-    println!("  rtk init -g --auto-patch    # Same as above but no prompt");
-    println!("  rtk init -g --no-patch      # Skip settings.json (manual setup)");
-    println!("  rtk init -g --uninstall     # Remove all RTK artifacts");
-    println!("  rtk init -g --claude-md     # Legacy: full injection into ~/.claude/CLAUDE.md");
-    println!("  rtk init -g --hook-only     # Hook only, no RTK.md");
-    println!("  rtk init --codex            # Configure local AGENTS.md + RTK.md");
-    println!("  rtk init -g --codex         # Configure $CODEX_HOME/AGENTS.md + $CODEX_HOME/RTK.md (or ~/.codex/)");
-    println!("  rtk init -g --opencode      # OpenCode plugin only");
-    println!("  rtk init -g --agent cursor  # Install Cursor Agent hooks");
+    println!("  zap init              # Full injection into local CLAUDE.md");
+    println!("  zap init -g           # Hook + ZAP.md + @ZAP.md + settings.json (recommended)");
+    println!("  zap init -g --auto-patch    # Same as above but no prompt");
+    println!("  zap init -g --no-patch      # Skip settings.json (manual setup)");
+    println!("  zap init -g --uninstall     # Remove all Zap artifacts");
+    println!("  zap init -g --claude-md     # Legacy: full injection into ~/.claude/CLAUDE.md");
+    println!("  zap init -g --hook-only     # Hook only, no ZAP.md");
+    println!("  zap init --codex            # Configure local AGENTS.md + ZAP.md");
+    println!("  zap init -g --codex         # Configure $CODEX_HOME/AGENTS.md + $CODEX_HOME/ZAP.md (or ~/.codex/)");
+    println!("  zap init -g --opencode      # OpenCode plugin only");
+    println!("  zap init -g --agent cursor  # Install Cursor Agent hooks");
 
     Ok(())
 }
@@ -3512,12 +3482,12 @@ fn show_codex_config() -> Result<()> {
     let local_agents_md = PathBuf::from(AGENTS_MD);
     let local_rtk_md = PathBuf::from(RTK_MD);
 
-    println!("rtk Configuration (Codex CLI):\n");
+    println!("Zap Configuration (Codex CLI):\n");
 
     if global_rtk_md.exists() {
-        println!("[ok] Global RTK.md: {}", global_rtk_md.display());
+        println!("[ok] Global ZAP.md: {}", global_rtk_md.display());
     } else {
-        println!("[--] Global RTK.md: not found");
+        println!("[--] Global ZAP.md: not found");
     }
 
     if global_agents_md.exists() {
@@ -3534,15 +3504,15 @@ fn show_codex_config() -> Result<()> {
     }
 
     if local_rtk_md.exists() {
-        println!("[ok] Local RTK.md: {}", local_rtk_md.display());
+        println!("[ok] Local ZAP.md: {}", local_rtk_md.display());
     } else {
-        println!("[--] Local RTK.md: not found");
+        println!("[--] Local ZAP.md: not found");
     }
 
     if local_agents_md.exists() {
         let content = fs::read_to_string(&local_agents_md)?;
         if has_rtk_reference(&content, &[RTK_MD_REF]) {
-            println!("[ok] Local AGENTS.md: @RTK.md reference");
+            println!("[ok] Local AGENTS.md: @ZAP.md reference");
         } else if content.contains(RTK_BLOCK_START) {
             println!("[!!] Local AGENTS.md: old inline RTK block");
         } else {
@@ -3553,9 +3523,9 @@ fn show_codex_config() -> Result<()> {
     }
 
     println!("\nUsage:");
-    println!("  rtk init --codex              # Configure local AGENTS.md + RTK.md");
-    println!("  rtk init -g --codex           # Configure $CODEX_HOME/AGENTS.md + $CODEX_HOME/RTK.md (or ~/.codex/)");
-    println!("  rtk init -g --codex --uninstall  # Remove global Codex RTK artifacts");
+    println!("  zap init --codex              # Configure local AGENTS.md + ZAP.md");
+    println!("  zap init -g --codex           # Configure $CODEX_HOME/AGENTS.md + $CODEX_HOME/ZAP.md (or ~/.codex/)");
+    println!("  zap init -g --codex --uninstall  # Remove global Codex Zap artifacts");
 
     Ok(())
 }
@@ -3850,7 +3820,7 @@ const COPILOT_HOOK_JSON: &str = r#"{
     "PreToolUse": [
       {
         "type": "command",
-        "command": "rtk hook copilot",
+        "command": "zap hook copilot",
         "cwd": ".",
         "timeout": 5
       }
@@ -3917,7 +3887,7 @@ fn run_copilot_at(base: &Path, ctx: InitContext) -> Result<()> {
         &instructions_path,
         COPILOT_INSTRUCTIONS,
         "Copilot instructions",
-        "rtk init --copilot",
+        "zap init --copilot",
         ctx,
     )?;
 
@@ -4111,10 +4081,10 @@ mod tests {
         let temp = TempDir::new().unwrap();
         let claude_md = temp.path().join("CLAUDE.md");
 
-        fs::write(&claude_md, "# My stuff\n\n@RTK.md\n").unwrap();
+        fs::write(&claude_md, "# My stuff\n\n@ZAP.md\n").unwrap();
 
         let content = fs::read_to_string(&claude_md).unwrap();
-        let count = content.matches("@RTK.md").count();
+        let count = content.matches("@ZAP.md").count();
         assert_eq!(count, 1);
     }
 
@@ -4131,7 +4101,7 @@ mod tests {
         assert!(!second_added);
 
         let content = fs::read_to_string(&agents_md).unwrap();
-        assert_eq!(content.matches("@RTK.md").count(), 1);
+        assert_eq!(content.matches("@ZAP.md").count(), 1);
     }
 
     #[test]
@@ -4237,7 +4207,7 @@ mod tests {
 
         assert!(added);
         let content = fs::read_to_string(&agents_md).unwrap();
-        assert_eq!(content, "@RTK.md\n");
+        assert_eq!(content, "@ZAP.md\n");
     }
 
     #[test]
@@ -4258,7 +4228,7 @@ mod tests {
         assert!(added);
         let content = fs::read_to_string(&agents_md).unwrap();
         assert!(!content.contains("old"));
-        assert_eq!(content.matches("@RTK.md").count(), 1);
+        assert_eq!(content.matches("@ZAP.md").count(), 1);
     }
 
     #[test]
@@ -4814,7 +4784,7 @@ mod tests {
         let agents_md = codex_dir.join("AGENTS.md");
         let rtk_md = codex_dir.join("RTK.md");
 
-        fs::write(&agents_md, "# Team rules\n\n@RTK.md\n").unwrap();
+        fs::write(&agents_md, "# Team rules\n\n@ZAP.md\n").unwrap();
         fs::write(&rtk_md, "codex config").unwrap();
 
         let removed_first = uninstall_codex_at(codex_dir, InitContext::default()).unwrap();
@@ -4825,7 +4795,7 @@ mod tests {
         assert!(!rtk_md.exists());
 
         let content = fs::read_to_string(&agents_md).unwrap();
-        assert!(!content.contains("@RTK.md"));
+        assert!(!content.contains("@ZAP.md"));
         assert!(content.contains("# Team rules"));
     }
 
@@ -4919,7 +4889,7 @@ mod tests {
 
         assert!(
             !rtk_md.exists(),
-            "dry-run must not create RTK.md: {}",
+            "dry-run must not create ZAP.md: {}",
             rtk_md.display()
         );
         assert!(
@@ -5736,7 +5706,7 @@ mod tests {
             // Files must still exist with identical content
             assert!(
                 claude_dir.join(RTK_MD).exists(),
-                "dry-run uninstall must not remove RTK.md"
+                "dry-run uninstall must not remove ZAP.md"
             );
             assert!(
                 claude_dir.join(SETTINGS_JSON).exists(),
@@ -5791,15 +5761,15 @@ mod tests {
 
     #[test]
     fn test_uninstall_handles_both_artifacts() {
-        let content = format!("# Config\n\n@RTK.md\n\n{}\n\nMore stuff", RTK_INSTRUCTIONS);
+        let content = format!("# Config\n\n@ZAP.md\n\n{}\n\nMore stuff", RTK_INSTRUCTIONS);
 
         let after_at_removal: String = content
             .lines()
-            .filter(|line| !line.trim().starts_with("@RTK.md"))
+            .filter(|line| !line.trim().starts_with("@ZAP.md"))
             .collect::<Vec<_>>()
             .join("\n");
 
-        assert!(!after_at_removal.contains("@RTK.md"));
+        assert!(!after_at_removal.contains("@ZAP.md"));
         assert!(after_at_removal.contains(RTK_BLOCK_START));
 
         let (final_content, did_remove) = remove_rtk_block(&after_at_removal);
